@@ -267,7 +267,8 @@ class ICarl(IncrementalLearner):
                 if self._early_stopping and self._early_stopping["patience"] > wait:
                     logger.warning("Early stopping!")
                     break
-
+        # ADD SAVE MODEL
+        torch.save(self._network.state_dict(), f"./checkpoints/podnet_task_{self._task}_epoch_{epoch}.pth")
         if self._eval_every_x_epochs:
             logger.info("Best accuracy reached at epoch {} with {}%.".format(best_epoch, best_acc))
 
