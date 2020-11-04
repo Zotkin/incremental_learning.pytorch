@@ -5,7 +5,6 @@ from inclearn.train import train
 
 matplotlib.use('Agg')
 
-
 def main():
     args = parser.get_parser().parse_args()
     args = vars(args)  # Converting argparse Namespace to a dict.

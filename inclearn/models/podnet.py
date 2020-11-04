@@ -384,7 +384,7 @@ class PODNet(ICarl):
                     ).to(self._device)
                 except:
                     import pdb
-                    pbd.set_trace()
+                    pdb.set_trace()
 
                 old_logits = old_outputs["logits"]
 

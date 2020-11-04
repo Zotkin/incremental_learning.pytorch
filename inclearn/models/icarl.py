@@ -247,16 +247,22 @@ class ICarl(IncrementalLearner):
             if self._scheduler:
                 self._scheduler.step(epoch)
 
-            if self._eval_every_x_epochs and epoch != 0 and epoch % self._eval_every_x_epochs == 0:
+#            if self._eval_every_x_epochs and epoch != 0 and epoch % self._eval_every_x_epochs == 0:
+            if epoch != 0:
                 self._network.eval()
                 self._data_memory, self._targets_memory, self._herding_indexes, self._class_means = self.build_examplars(
                     self.inc_dataset, self._herding_indexes
                 )
-                ytrue, ypred = self._eval_task(val_loader)
-                acc = 100 * round((ypred == ytrue).sum() / len(ytrue), 3)
-                logger.info("Val accuracy: {}".format(acc))
-                self._network.train()
+                ypred, ytrue = self._eval_task(val_loader)
 
+
+                ypred = np.argmax(ypred, axis=1)
+
+                acc = 100 * round(np.equal(ytrue, ypred).sum() / len(ytrue), 3)
+                logger.info("Val accuracy: {}".format(acc))
+                with open("/checkpoints/accuracies.txt", "a") as f:
+                    f.write(f"{acc} ")
+                self._network.train()
                 if acc > best_acc:
                     best_epoch = epoch
                     best_acc = acc
@@ -268,7 +274,8 @@ class ICarl(IncrementalLearner):
                     logger.warning("Early stopping!")
                     break
         # ADD SAVE MODEL
-        torch.save(self._network.state_dict(), f"./checkpoints/podnet_task_{self._task}_epoch_{epoch}.pth")
+            torch.save(self._network.state_dict(), f"/checkpoints/podnet_task_{self._task}_epoch_{epoch}.pth")
+            print(f"Saved model to /checkpoints/podnet_task_{self._task}_epoch_{epoch}.pth")
         if self._eval_every_x_epochs:
             logger.info("Best accuracy reached at epoch {} with {}%.".format(best_epoch, best_acc))
 
