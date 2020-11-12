@@ -25,5 +25,5 @@ RUN pip install -r requirements.txt && \
     rm requirements.txt
 
 COPY . incremental_learning.pytorch/
-RUN mkdir /checheckpoints/
+RUN mkdir /checheckpoints/ /accuracy/
 WORKDIR incremental_learning.pytorch
