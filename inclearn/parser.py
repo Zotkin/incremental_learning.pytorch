@@ -93,4 +93,7 @@ def get_parser():
     parser.add_argument("--no-benchmark", action="store_true", default=False)
     parser.add_argument("--detect-anomaly", action="store_true", default=False)
 
+    # sv regularization
+    parser.add_argument("--sv-regularization", action="store_true", default=False)
+
     return parser

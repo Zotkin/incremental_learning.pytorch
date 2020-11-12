@@ -91,6 +91,8 @@ class ICarl(IncrementalLearner):
 
         self._meta_transfer = args.get("meta_transfer", {})
 
+        self._args = args
+
     def set_meta_transfer(self):
         if self._meta_transfer["type"] not in ("repeat", "once", "none"):
             raise ValueError(f"Invalid value for meta-transfer {self._meta_transfer}.")
@@ -268,7 +270,9 @@ class ICarl(IncrementalLearner):
                     logger.warning("Early stopping!")
                     break
         # ADD SAVE MODEL
-        torch.save(self._network.state_dict(), f"./checkpoints/podnet_task_{self._task}_epoch_{epoch}.pth")
+            torch.save(self._network.state_dict(), f"/checkpoints/podnet_task_{self._task}_epoch_{epoch}.pth")
+            print(f"Saved model to /checkpoints/podnet_task_{self._task}_epoch_{epoch}.pth")
+
         if self._eval_every_x_epochs:
             logger.info("Best accuracy reached at epoch {} with {}%.".format(best_epoch, best_acc))
 
@@ -305,7 +309,28 @@ class ICarl(IncrementalLearner):
             outputs["gradcam_gradients"] = gradcam_grad
             outputs["gradcam_activations"] = gradcam_act
 
+
+
+
+
+
         loss = self._compute_loss(inputs, outputs, targets, onehot_targets, memory_flags)
+
+        if self._args['sv_regularization']:
+            # sv regularization goes here
+            linear_layers_names = list(filter(lambda x: "classifier" in x, training_network.state_dict().keys()))
+            linear_tensors = []
+            for linear_layer_name in linear_layers_names:
+                linear_tensors.append(training_network.state_dict()[linear_layer_name])
+            linear_matrix = torch.cat(linear_tensors)
+
+            u, s, v = torch.svd(torch.matmul(linear_matrix, linear_matrix.T))
+            sv_entropy = -torch.sum(F.softmax(torch.sqrt(s), dim=0) * F.log_softmax(torch.sqrt(s), dim=0))
+    #        sv_ratio = s[0] / (s[-1] + 0.00001)
+            norm = torch.mean(torch.norm(linear_matrix, dim=1))
+            loss += sv_entropy
+            loss += norm
+            # sv regularization ends
 
         if not utils.check_loss(loss):
             raise ValueError("A loss is NaN: {}".format(self._metrics))

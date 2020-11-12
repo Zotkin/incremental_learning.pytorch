@@ -328,6 +328,25 @@ class PODNet(ICarl):
             self._metrics["cce"] += loss.item()
 
         # --------------------
+        # SV Ratio Regularization
+        # --------------------
+        if self._args['sv_regularization']:
+            # sv regularization goes here
+            linear_layers_names = list(filter(lambda x: "classifier" in x, self._network.state_dict().keys()))
+            linear_tensors = []
+            for linear_layer_name in linear_layers_names:
+                linear_tensors.append(self._network.state_dict()[linear_layer_name])
+            linear_matrix = torch.cat(linear_tensors)
+
+            u, s, v = torch.svd(torch.matmul(linear_matrix, linear_matrix.T))
+            sv_entropy = -torch.sum(F.softmax(torch.sqrt(s), dim=0) * F.log_softmax(torch.sqrt(s), dim=0))
+            #        sv_ratio = s[0] / (s[-1] + 0.00001)
+            norm = torch.mean(torch.norm(linear_matrix, dim=1))
+            loss += sv_entropy
+            loss += norm
+
+
+        # --------------------
         # Distillation losses:
         # --------------------
 
