@@ -142,6 +142,10 @@ def _train(args, start_date, class_order, run_id):
             ) as f:
                 pickle.dump((ypreds, ytrue), f)
 
+        accuracies_folder = "/accuracy/"
+        np.save(os.path.join(accuracies_folder, f"incremental_accuracy_task_{task_id}.npy"), metric_logger.last_results["incremental_accuracy"])
+        np.save(os.path.join(accuracies_folder, f"accuracy_task_{task_id}.npy"), metric_logger.last_results["accuracy"])
+        np.save(os.path.join(accuracies_folder, f"forgetting_task_{task_id}.npy"), metric_logger.last_results["forgetting"])
         if args["label"]:
             logger.info(args["label"])
         logger.info("Avg inc acc: {}.".format(metric_logger.last_results["incremental_accuracy"]))
