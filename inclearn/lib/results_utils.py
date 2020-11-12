@@ -45,7 +45,7 @@ def extract(paths, metric="avg_inc", nb_classes=None):
     :param paths: A path or a list of paths to a json file.
     :param avg_inc: Boolean specifying whether to use the accuracy or the average
                     incremental accuracy as defined in iCaRL.
-    :return: A list of runs. Each runs is a list of (average incremental) accuracies.
+    :return: A list of runs. Each runs is a list of (average incremental) accuracy.
     """
     if not isinstance(paths, list):
         paths = [paths]
@@ -95,7 +95,7 @@ def extract(paths, metric="avg_inc", nb_classes=None):
 def compute_avg_inc_acc(results):
     """Computes the average incremental accuracy as defined in iCaRL.
 
-    The average incremental accuracies at task X are the average of accuracies
+    The average incremental accuracy at task X are the average of accuracy
     at task 0, 1, ..., and X.
 
     :param accs: A list of dict for per-class accuracy at each step.
@@ -109,7 +109,7 @@ def aggregate(runs_accs):
     """Aggregate results of several runs into means & standard deviations.
 
     :param runs_accs: A list of runs. Each runs is a list of (average
-                      incremental) accuracies.
+                      incremental) accuracy.
     :return: A list of means, and a list of standard deviations.
     """
     means = []
@@ -129,15 +129,15 @@ def aggregate(runs_accs):
 
 
 def compute_unique_score(runs_accs, skip_first=False, first_n_steps=None):
-    """Computes the average of the (average incremental) accuracies to get a
+    """Computes the average of the (average incremental) accuracy to get a
     unique score.
 
     :param runs_accs: A list of runs. Each runs is a list of (average
-                      incremental) accuracies.
+                      incremental) accuracy.
     :param skip_first: Whether to skip the first task accuracy as advised in
                        End-to-End Incremental Accuracy.
     :return: A unique score being the average of the (average incremental)
-             accuracies, and a standard deviation.
+             accuracy, and a standard deviation.
     """
     start = int(skip_first)
 
