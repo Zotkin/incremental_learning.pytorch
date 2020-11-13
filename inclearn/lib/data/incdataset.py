@@ -53,13 +53,14 @@ class IncrementalDataset:
         class_order=None,
         dataset_transforms=None,
         all_test_classes=False,
-        metadata_path=None
+        metadata_path=None,
+        args = None
     ):
         datasets = _get_datasets(dataset_name)
         if metadata_path:
             print("Adding metadata path {}".format(metadata_path))
             datasets[0].metadata_path = metadata_path
-
+        self.args = args
         self._setup_data(
             datasets,
             random_order=random_order,
@@ -264,9 +265,18 @@ class IncrementalDataset:
         else:
             sampler = None
             batch_size = self._batch_size
+        # TODO 1. Add dataset instance as a variable conditional of whether we using SimCLR or not
+        # TODO 2. Add config as instance attribute such that we have access to config
+        # TODO 3. Add SimCLR loss if config specify one
+        # TODO 4. Verify that batch size is accessible at the loss computation stage [for SimCLR and perhaps original loss]
+
+        if self.args and self.args['use_sim_clr']:
+            dataset = DoubleAugmentedDataset(x, y, memory_flags, trsf, open_image=self.open_image)
+        else:
+            dataset = DummyDataset(x, y, memory_flags, trsf, open_image=self.open_image)
 
         return DataLoader(
-            DummyDataset(x, y, memory_flags, trsf, open_image=self.open_image),
+            dataset,
             batch_size=batch_size,
             shuffle=shuffle if sampler is None else False,
             num_workers=self._workers,
