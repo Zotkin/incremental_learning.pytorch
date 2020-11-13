@@ -429,6 +429,27 @@ class DummyDataset(torch.utils.data.Dataset):
         return {"inputs": img, "targets": y, "memory_flags": memory_flag}
 
 
+class DoubleAugmentedDataset(DummyDataset):
+
+    def __getitem__(self, idx):
+
+        x, y = self.x[idx], self.y[idx]
+        memory_flag = self.memory_flags[idx]
+        # possibly need to double memory flags
+
+        if self.open_image:
+            img = Image.open(x).convert("RGB")
+        else:
+            img = Image.fromarray(x.astype("uint8"))
+
+        img_1 = self.trsf(img)
+        img_2 = self.trsf(img)
+        img = torch.cat([img_1, img_2])
+        y = torch.cat([y, y])
+        memory_flag = torch.cat([memory_flag, memory_flag])
+        return {"inputs": img, "targets": y, "memory_flags": memory_flag}
+
+
 def _get_datasets(dataset_names):
     return [_get_dataset(dataset_name) for dataset_name in dataset_names.split("-")]
 

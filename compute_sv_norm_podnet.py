@@ -1,6 +1,7 @@
 import os
 from typing import Tuple, List, Dict
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
@@ -12,10 +13,18 @@ def plot_jointly(metrics: Dict[str,Dict[str, List[float]]]):
 
     current_plot_number = 1
     for metric in metrics['baseline'].keys():
-        plt.subplot(310 + current_plot_number)
+        plt.subplot(410 + current_plot_number)
         plt.gca().set_title(metric)
         for model in metrics.keys():
-            plt.plot(metrics[model][metric], label=model)
+            if metric == "accuracy": # accuracy is computer per stage
+                total_num_epochs = len(metrics[model]["sv_ratio"])
+                total_num_stages = len(metrics[model]["accuracy"])
+                num_epochs_per_stage = total_num_epochs/total_num_stages
+                epochs = [num_epochs_per_stage*i for i in range(total_num_stages)]
+
+                plt.plot(epochs, metrics[model][metric], label = model)
+            else:
+                plt.plot(metrics[model][metric], label=model)
         current_plot_number += 1
     plt.legend()
     plt.show()
@@ -35,11 +44,24 @@ def get_norm(linear_layer: torch.Tensor) -> float:
 def get_sorted_checkpoint_paths(path: str) -> List[str]:
     return list(map(lambda x: os.path.join(path, x),sorted(os.listdir(path))))
 
+def get_sorted_accuracies(root_path: str, name: str, examples_per_stage: int):
+
+    num_stages = int(1 + 50/examples_per_stage)
+    accuracies = []
+    for i in range(num_stages):
+        path = os.path.join(root_path,f"seeded/{name}/accuracy/1/{examples_per_stage}/accuracy_task_{i}.npy")
+        accuracy_object = np.load(path, allow_pickle=True)
+        accuracies.append(accuracy_object.item()['total'])
+    return accuracies
+
+
+
+
 
 def main(root_path: str, examples_per_stage: int):
 
-    continual_model_folder = os.path.join(root_path, f"continual/{examples_per_stage}/")
-    baseline_model_folder = os.path.join(root_path, f"baseline/{examples_per_stage}/")
+    continual_model_folder = os.path.join(root_path, f"seeded/continual/1/{examples_per_stage}/")
+    baseline_model_folder = os.path.join(root_path, f"seeded/baseline/1/{examples_per_stage}/")
 
     NUM_ENCODER_TENSORS = 187
 
@@ -47,17 +69,21 @@ def main(root_path: str, examples_per_stage: int):
         "baseline": {
             "sv_ratio":[],
             "sv_entropy":[],
-            "norm":[]
+            "norm":[],
+            "accuracy": []
         },
         "continual": {
             "sv_ratio":[],
             "sv_entropy":[],
-            "norm":[]
+            "norm":[],
+            "accuracy":[]
         }
     }
 
     for name, folder_path in [("baseline", baseline_model_folder), ("continual", continual_model_folder)]:
         checkpoint_paths = get_sorted_checkpoint_paths(folder_path)
+
+        metrics[name]['accuracy'] = get_sorted_accuracies(root_path, name, examples_per_stage)
 
         for path in tqdm(checkpoint_paths):
 
