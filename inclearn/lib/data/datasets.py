@@ -35,6 +35,15 @@ class iCIFAR10(DataHandler):
         transforms.ToTensor(),
         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
     ]
+    contrastive_transforms = [
+        transforms.RandomResizedCrop((32,32)),
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomApply([
+            transforms.ColorJitter(0.8, 0.8, 0.8, 0.2),
+        ], p=0.8),
+        transforms.RandomGrayscale(p=0.2)
+    ]
+
 
     def set_custom_transforms(self, transforms):
         if not transforms.get("color_jitter"):

@@ -77,6 +77,8 @@ class IncrementalDataset:
         self.train_transforms = dataset.train_transforms  # FIXME handle multiple datasets
         self.test_transforms = dataset.test_transforms
         self.common_transforms = dataset.common_transforms
+        self.contrastive_transforms = dataset.contrastive_transforms if hasattr(dataset, "contrastive_transforms") else None
+
 
         self.open_image = datasets[0].open_image
 
@@ -265,13 +267,17 @@ class IncrementalDataset:
         else:
             sampler = None
             batch_size = self._batch_size
-        # TODO 1. Add dataset instance as a variable conditional of whether we using SimCLR or not
-        # TODO 2. Add config as instance attribute such that we have access to config
+        # TODO Verify augmentations
         # TODO 3. Add SimCLR loss if config specify one
         # TODO 4. Verify that batch size is accessible at the loss computation stage [for SimCLR and perhaps original loss]
 
         if self.args and self.args['use_sim_clr']:
-            dataset = DoubleAugmentedDataset(x, y, memory_flags, trsf, open_image=self.open_image)
+            trsf_contrastive = transforms.Compose(
+                [
+                    *self.contrastive_transforms, *self.common_transforms
+                ]
+            )
+            dataset = DoubleAugmentedDataset(x, y, memory_flags, trsf, trsf_contrastive, open_image=self.open_image)
         else:
             dataset = DummyDataset(x, y, memory_flags, trsf, open_image=self.open_image)
 
@@ -439,7 +445,19 @@ class DummyDataset(torch.utils.data.Dataset):
         return {"inputs": img, "targets": y, "memory_flags": memory_flag}
 
 
-class DoubleAugmentedDataset(DummyDataset):
+class DoubleAugmentedDataset(torch.utils.data.Dataset):
+
+    def __init__(self, x, y, memory_flags, trsf, trsf_contrastive, open_image=False):
+        self.x, self.y = x, y
+        self.memory_flags = memory_flags
+        self.trsf = trsf
+        self.trsf_contrastive = trsf_contrastive
+        self.open_image = open_image
+
+        assert x.shape[0] == y.shape[0] == memory_flags.shape[0]
+
+    def __len__(self):
+        return self.x.shape[0]
 
     def __getitem__(self, idx):
 
@@ -453,7 +471,7 @@ class DoubleAugmentedDataset(DummyDataset):
             img = Image.fromarray(x.astype("uint8"))
 
         img_1 = self.trsf(img)
-        img_2 = self.trsf(img)
+        img_2 = self.trsf_contrastive(img)
         img = torch.cat([img_1, img_2])
         y = torch.cat([y, y])
         memory_flag = torch.cat([memory_flag, memory_flag])
