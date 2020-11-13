@@ -95,5 +95,7 @@ def get_parser():
 
     # sv regularization
     parser.add_argument("--sv-regularization", action="store_true", default=False)
+    # sim clr head
+    parser.add_argument("--use-sim-clr", action="store_true", default=False)
 
     return parser
