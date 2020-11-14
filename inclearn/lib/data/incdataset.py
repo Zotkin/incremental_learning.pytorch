@@ -267,9 +267,6 @@ class IncrementalDataset:
         else:
             sampler = None
             batch_size = self._batch_size
-        # TODO Verify augmentations
-        # TODO 3. Add SimCLR loss if config specify one
-        # TODO 4. Verify that batch size is accessible at the loss computation stage [for SimCLR and perhaps original loss]
 
         if self.args and self.args['use_sim_clr']:
             trsf_contrastive = transforms.Compose(
