@@ -12,6 +12,7 @@ from torch.nn import functional as F
 from tqdm import tqdm
 
 from inclearn.lib import factory, herding, losses, network, schedulers, utils
+from inclearn.lib.losses import NT_Xent
 from inclearn.lib.network import hook
 from inclearn.models.base import IncrementalLearner
 
@@ -92,6 +93,9 @@ class ICarl(IncrementalLearner):
         self._meta_transfer = args.get("meta_transfer", {})
 
         self._args = args
+
+        # sim clr
+        self.nt_xent_loss = NT_Xent(batch_size=args['batch_size'], temperature=args['nt_xent_temperature'], device=self._device)
 
     def set_meta_transfer(self):
         if self._meta_transfer["type"] not in ("repeat", "once", "none"):
@@ -309,11 +313,6 @@ class ICarl(IncrementalLearner):
             outputs["gradcam_gradients"] = gradcam_grad
             outputs["gradcam_activations"] = gradcam_act
 
-
-
-
-
-
         loss = self._compute_loss(inputs, outputs, targets, onehot_targets, memory_flags)
 
         if self._args['sv_regularization']:
@@ -331,6 +330,13 @@ class ICarl(IncrementalLearner):
             loss += sv_entropy
             loss += norm
             # sv regularization ends
+            self._metrics['sv_entropy'] += sv_entropy
+            self._metrics['norm'] += norm
+
+        if self._args['use_sim_clr']:
+            similarity_loss = self.nt_xent_loss(outputs['features'])
+            loss += similarity_loss
+            self._metrics['xt_xent_loss'] += similarity_loss
 
         if not utils.check_loss(loss):
             raise ValueError("A loss is NaN: {}".format(self._metrics))
