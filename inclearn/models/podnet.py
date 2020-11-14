@@ -8,6 +8,7 @@ from torch.nn import functional as F
 
 from inclearn.lib import data, factory, losses, network, utils
 from inclearn.lib.data import samplers
+from inclearn.lib.losses import NT_Xent
 from inclearn.models.icarl import ICarl
 
 logger = logging.getLogger(__name__)
@@ -100,6 +101,10 @@ class PODNet(ICarl):
 
         self._args = args
         self._args["_logs"] = {}
+
+        # sim clr
+        self.nt_xent_loss = NT_Xent(batch_size=args['batch_size'], temperature=args['nt_xent_temperature'],
+                                    device=self._device)
 
     @property
     def _memory_per_class(self):
