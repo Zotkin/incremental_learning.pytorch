@@ -95,6 +95,8 @@ def get_parser():
 
     # sv regularization
     parser.add_argument("--sv-regularization", action="store_true", default=False)
+    parser.add_argument("--sv-regularization-strength", default=1.0, type=float,
+                        help="SV regularization multiplier")
     # sim clr head
     parser.add_argument("--use-sim-clr", action="store_true", default=False)
     parser.add_argument("--nt-xent-temperature", default=0.1, type=float,
