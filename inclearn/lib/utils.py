@@ -45,7 +45,7 @@ def get_date():
     return datetime.datetime.now().strftime("%Y%m%d")
 
 
-def extract_features(model, loader):
+def extract_features(model, loader, use_sim_clr=None):
     targets, features = [], []
 
     state = model.training
@@ -53,6 +53,11 @@ def extract_features(model, loader):
 
     for input_dict in loader:
         inputs, _targets = input_dict["inputs"], input_dict["targets"]
+        if use_sim_clr:
+            effective_batch_size = int(inputs.shape[0]/2)
+            inputs = inputs[:effective_batch_size, :]
+            _targets = _targets[:effective_batch_size]
+
 
         _targets = _targets.numpy()
         _features = model.extract(inputs.to(model.device)).detach().cpu().numpy()
