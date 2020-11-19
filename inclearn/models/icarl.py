@@ -273,9 +273,16 @@ class ICarl(IncrementalLearner):
                 if self._early_stopping and self._early_stopping["patience"] > wait:
                     logger.warning("Early stopping!")
                     break
-        # ADD SAVE MODEL
+        # ADD SAVE MODEL]
+            # TODO CHANGE BACK TO ABSOLUTE PATH
+            # OR BETTER TAKE PATH FROM CONFIG
             torch.save(self._network.state_dict(), f"/checkpoints/podnet_task_{self._task}_epoch_{epoch}.pth")
             print(f"Saved model to /checkpoints/podnet_task_{self._task}_epoch_{epoch}.pth")
+            # record_metric
+            for metric in self._metrics.keys():
+
+                with open(f"/accuracy/{metric}.txt", "a") as f:
+                    f.write(f"{self._metrics[metric]} ")
 
         if self._eval_every_x_epochs:
             logger.info("Best accuracy reached at epoch {} with {}%.".format(best_epoch, best_acc))
@@ -284,6 +291,10 @@ class ICarl(IncrementalLearner):
             training_network.convnet.normal_mode()
 
     def _print_metrics(self, prog_bar, epoch, nb_epochs, nb_batches):
+        # debug
+        print("Printing metrics")
+        for metric_name, metric in self._metrics.items():
+            print(f"{metric_name}:{metric}")
         pretty_metrics = ", ".join(
             "{}: {}".format(metric_name, round(metric_value / nb_batches, 3))
             for metric_name, metric_value in self._metrics.items()
@@ -322,24 +333,33 @@ class ICarl(IncrementalLearner):
             for linear_layer_name in linear_layers_names:
                 linear_tensors.append(training_network.state_dict()[linear_layer_name])
             linear_matrix = torch.cat(linear_tensors)
-
+            mean_linear_tensors = []
+            num_proxy_per_class = self._args['classifier_config']['proxy_per_class']
+            num_classes = int(linear_matrix.shape[0]/num_proxy_per_class)
+            for i in range(num_classes):
+                from_ = i*num_proxy_per_class
+                to = (i+1)*num_proxy_per_class
+                mean_linear_tensors.append(torch.mean(linear_matrix[from_:to], axis=0, keepdim=True))
+            linear_matrix = torch.cat(mean_linear_tensors)
             u, s, v = torch.svd(torch.matmul(linear_matrix, linear_matrix.T))
-            sv_entropy = -torch.sum(F.softmax(torch.sqrt(s), dim=0) * F.log_softmax(torch.sqrt(s), dim=0))
+            sv_entropy = torch.sum(F.softmax(torch.sqrt(s), dim=0) * F.log_softmax(torch.sqrt(s), dim=0))
     #        sv_ratio = s[0] / (s[-1] + 0.00001)
             norm = torch.mean(torch.norm(linear_matrix, dim=1))
-            loss += sv_entropy
-            loss += norm
+            loss += self._args['sv_regularization_strength'] * sv_entropy.item()
+            loss += self._args['sv_regularization_strength'] * norm.item()
             # sv regularization ends
-            self._metrics['sv_entropy'] += sv_entropy
-            self._metrics['norm'] += norm
+            self._metrics['sv_entropy'] += self._args['sv_regularization_strength'] * sv_entropy.item()
+            self._metrics['norm'] += self._args['sv_regularization_strength'] * norm.item()
 
         if self._args['use_sim_clr']:
             similarity_loss = self.nt_xent_loss(outputs['features'])
             loss += similarity_loss
-            self._metrics['xt_xent_loss'] += similarity_loss
+            self._metrics['xt_xent_loss'] += similarity_loss.item()
 
-        if not utils.check_loss(loss):
-            raise ValueError("A loss is NaN: {}".format(self._metrics))
+        #if not utils.check_loss(loss):
+        #    raise ValueError("A loss is NaN: {}".format(self._metrics))
+
+
 
         self._metrics["loss"] += loss.item()
 
@@ -435,7 +455,7 @@ class ICarl(IncrementalLearner):
             inputs, loader = inc_dataset.get_custom_loader(
                 class_idx, mode="test", data_source=data_source
             )
-            features, targets = utils.extract_features(self._network, loader)
+            features, targets = utils.extract_features(self._network, loader, use_sim_clr=self._args['use_sim_clr'])
             features_flipped, _ = utils.extract_features(
                 self._network,
                 inc_dataset.get_custom_loader(class_idx, mode="flip", data_source=data_source)[1]
