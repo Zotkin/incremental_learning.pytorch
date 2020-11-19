@@ -100,7 +100,8 @@ def get_data(args, class_order=None):
         seed=args["seed"],
         dataset_transforms=args.get("dataset_transforms", {}),
         all_test_classes=args.get("all_test_classes", False),
-        metadata_path=args.get("metadata_path")
+        metadata_path=args.get("metadata_path"),
+        args=args
     )
 
 
