@@ -269,21 +269,26 @@ class IncrementalDataset:
             batch_size = self._batch_size
 
         if self.args and self.args['use_sim_clr']:
+            print("Using sim clr dataset")
             trsf_contrastive = transforms.Compose(
                 [
                     *self.contrastive_transforms, *self.common_transforms
                 ]
             )
             dataset = DoubleAugmentedDataset(x, y, memory_flags, trsf, trsf_contrastive, open_image=self.open_image)
+            collate_fn = dataset.collate_fn
         else:
+            print("Using dummy dataset")
             dataset = DummyDataset(x, y, memory_flags, trsf, open_image=self.open_image)
+            collate_fn = None
 
         return DataLoader(
             dataset,
             batch_size=batch_size,
             shuffle=shuffle if sampler is None else False,
             num_workers=self._workers,
-            batch_sampler=sampler
+            batch_sampler=sampler,
+            collate_fn=collate_fn
         )
 
     def _setup_data(
@@ -467,12 +472,33 @@ class DoubleAugmentedDataset(torch.utils.data.Dataset):
         else:
             img = Image.fromarray(x.astype("uint8"))
 
-        img_1 = self.trsf(img)
-        img_2 = self.trsf_contrastive(img)
-        img = torch.cat([img_1, img_2])
-        y = torch.cat([y, y])
-        memory_flag = torch.cat([memory_flag, memory_flag])
-        return {"inputs": img, "targets": y, "memory_flags": memory_flag}
+        normal_img = self.trsf(img)
+        augmented_img = self.trsf_contrastive(img)
+        return {"inputs": normal_img, "augmented_inputs":augmented_img, "targets": y, "memory_flags": memory_flag}
+
+    @staticmethod
+    def collate_fn(batch):
+        targets = []
+        inputs = []
+        augmented_inputs = []
+        memory_flags = []
+
+        for example in batch:
+            targets.append(example["targets"])
+            inputs.append(example['inputs'])
+            augmented_inputs.append(example['augmented_inputs'])
+            memory_flags.append(example['memory_flags'])
+
+        inputs.extend(augmented_inputs)
+        targets.extend(targets)
+        memory_flags.extend(memory_flags)
+
+        inputs = torch.stack(inputs)
+        targets = torch.tensor(targets, dtype=torch.long)
+        memory_flags = torch.tensor(memory_flags)
+
+        return {"inputs": inputs, "targets": targets, "memory_flags": memory_flags}
+
 
 
 def _get_datasets(dataset_names):
