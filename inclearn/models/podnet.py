@@ -347,6 +347,8 @@ class PODNet(ICarl):
             sv_entropy = -torch.sum(F.softmax(torch.sqrt(s), dim=0) * F.log_softmax(torch.sqrt(s), dim=0))
             #        sv_ratio = s[0] / (s[-1] + 0.00001)
             norm = torch.mean(torch.norm(linear_matrix, dim=1))
+            self._metrics['sv_entropy'] += sv_entropy.item()
+            self._metrics['norm'] += norm.item()
             loss += sv_entropy
             loss += norm
 
