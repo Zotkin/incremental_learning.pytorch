@@ -8,7 +8,7 @@ from torch.nn import functional as F
 
 from inclearn.lib import data, factory, losses, network, utils
 from inclearn.lib.data import samplers
-from inclearn.lib.losses import NT_Xent
+from inclearn.lib.losses import NT_Xent, SV_regularization_loss
 from inclearn.models.icarl import ICarl
 
 logger = logging.getLogger(__name__)
@@ -105,6 +105,9 @@ class PODNet(ICarl):
         # sim clr
         self.nt_xent_loss = NT_Xent(batch_size=args['batch_size'], temperature=args['nt_xent_temperature'],
                                     device=self._device)
+
+        # sv regularization
+        self.sv_loss = SV_regularization_loss(args)
 
     @property
     def _memory_per_class(self):
@@ -302,7 +305,22 @@ class PODNet(ICarl):
             self._class_weights = None
 
     def _compute_loss(self, inputs, outputs, targets, onehot_targets, memory_flags):
+
+        if self._args['use_sim_clr']:
+            half_batch = inputs.shape[0]//2
+            inputs = inputs[:half_batch]
+            memory_flags = memory_flags[:half_batch]
+            onehot_targets = onehot_targets[:half_batch]
+            targets = targets[:half_batch]
+            outputs['raw_features'] = outputs['raw_features'][:half_batch]
+            outputs['features'] = outputs['raw_features'][:half_batch]
+            outputs['logits'] = outputs['logits'][:half_batch]
+            outputs['raw_logits'] = outputs['raw_logits'][:half_batch]
+            for i in range(len(outputs['attention'])):
+                outputs['attention'][i] = outputs['attention'][i][:half_batch]
+
         features, logits, atts = outputs["raw_features"], outputs["logits"], outputs["attention"]
+
 
         if self._post_processing_type is None:
             scaled_logits = self._network.post_process(logits)
@@ -331,26 +349,6 @@ class PODNet(ICarl):
         elif self._softmax_ce:
             loss = F.cross_entropy(scaled_logits, targets)
             self._metrics["cce"] += loss.item()
-
-        # --------------------
-        # SV Ratio Regularization
-        # --------------------
-        if self._args['sv_regularization']:
-            # sv regularization goes here
-            linear_layers_names = list(filter(lambda x: "classifier" in x, self._network.state_dict().keys()))
-            linear_tensors = []
-            for linear_layer_name in linear_layers_names:
-                linear_tensors.append(self._network.state_dict()[linear_layer_name])
-            linear_matrix = torch.cat(linear_tensors)
-
-            u, s, v = torch.svd(torch.matmul(linear_matrix, linear_matrix.T))
-            sv_entropy = -torch.sum(F.softmax(torch.sqrt(s), dim=0) * F.log_softmax(torch.sqrt(s), dim=0))
-            #        sv_ratio = s[0] / (s[-1] + 0.00001)
-            norm = torch.mean(torch.norm(linear_matrix, dim=1))
-            self._metrics['sv_entropy'] += sv_entropy.item()
-            self._metrics['norm'] += norm.item()
-            loss += sv_entropy
-            loss += norm
 
 
         # --------------------

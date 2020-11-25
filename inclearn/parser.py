@@ -94,6 +94,8 @@ def get_parser():
     parser.add_argument("--detect-anomaly", action="store_true", default=False)
 
     # sv regularization
+    parser.add_argument("--sv-regularization-type", choices=["ratio", "entropy_positive", "entropy_negative"],
+                        default="entropy_positive")
     parser.add_argument("--sv-regularization", action="store_true", default=False)
     parser.add_argument("--sv-regularization-strength", default=1.0, type=float,
                         help="SV regularization multiplier")
@@ -101,5 +103,7 @@ def get_parser():
     parser.add_argument("--use-sim-clr", action="store_true", default=False)
     parser.add_argument("--nt-xent-temperature", default=0.1, type=float,
                         help="NT Xent temperature (SimCLR)")
+    parser.add_argument("--sim-clr-alpha", default=1.0, type=float,
+                        help="Multiplier before the SimCLR loss component")
 
     return parser

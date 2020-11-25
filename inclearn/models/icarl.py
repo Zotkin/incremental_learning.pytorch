@@ -12,7 +12,7 @@ from torch.nn import functional as F
 from tqdm import tqdm
 
 from inclearn.lib import factory, herding, losses, network, schedulers, utils
-from inclearn.lib.losses import NT_Xent
+from inclearn.lib.losses import NT_Xent, SV_regularization_loss
 from inclearn.lib.network import hook
 from inclearn.models.base import IncrementalLearner
 
@@ -96,6 +96,8 @@ class ICarl(IncrementalLearner):
 
         # sim clr
         self.nt_xent_loss = NT_Xent(batch_size=args['batch_size'], temperature=args['nt_xent_temperature'], device=self._device)
+        # sv regularization
+        self.sv_loss = SV_regularization_loss(args)
 
     def set_meta_transfer(self):
         if self._meta_transfer["type"] not in ("repeat", "once", "none"):
@@ -323,38 +325,48 @@ class ICarl(IncrementalLearner):
         if gradcam_act is not None:
             outputs["gradcam_gradients"] = gradcam_grad
             outputs["gradcam_activations"] = gradcam_act
+        loss = 0
+        if self._args['use_sim_clr']:
+            similarity_loss = self.nt_xent_loss(outputs['features'])
+            loss += self._args['sim_clr_alpha']*similarity_loss
+            self._metrics['xt_xent_loss'] +=  self._args['sim_clr_alpha']*similarity_loss.item()
 
         loss = self._compute_loss(inputs, outputs, targets, onehot_targets, memory_flags)
 
         if self._args['sv_regularization']:
             # sv regularization goes here
-            linear_layers_names = list(filter(lambda x: "classifier" in x, training_network.state_dict().keys()))
-            linear_tensors = []
-            for linear_layer_name in linear_layers_names:
-                linear_tensors.append(training_network.state_dict()[linear_layer_name])
-            linear_matrix = torch.cat(linear_tensors)
-            mean_linear_tensors = []
-            num_proxy_per_class = self._args['classifier_config']['proxy_per_class']
-            num_classes = int(linear_matrix.shape[0]/num_proxy_per_class)
-            for i in range(num_classes):
-                from_ = i*num_proxy_per_class
-                to = (i+1)*num_proxy_per_class
-                mean_linear_tensors.append(torch.mean(linear_matrix[from_:to], axis=0, keepdim=True))
-            linear_matrix = torch.cat(mean_linear_tensors)
-            u, s, v = torch.svd(torch.matmul(linear_matrix, linear_matrix.T))
-            sv_entropy = torch.sum(F.softmax(torch.sqrt(s), dim=0) * F.log_softmax(torch.sqrt(s), dim=0))
-    #        sv_ratio = s[0] / (s[-1] + 0.00001)
-            norm = torch.mean(torch.norm(linear_matrix, dim=1))
-            loss += self._args['sv_regularization_strength'] * sv_entropy.item()
-            loss += self._args['sv_regularization_strength'] * norm.item()
-            # sv regularization ends
-            self._metrics['sv_entropy'] += self._args['sv_regularization_strength'] * sv_entropy.item()
-            self._metrics['norm'] += self._args['sv_regularization_strength'] * norm.item()
+            loss += self.sv_loss(training_network, self._metrics)
+        else:
+            # add sv values to the metrics
+            with torch.no_grad():
+                linear_layers_names = list(filter(lambda x: "classifier" in x, training_network.state_dict().keys()))
+                linear_tensors = []
+                for linear_layer in training_network.classifier.parameters():
+                    linear_tensors.append(linear_layer)
+                linear_matrix = torch.cat(linear_tensors)
+                mean_linear_tensors = []
+                num_proxy_per_class = self._args['classifier_config']['proxy_per_class']
+                num_classes = int(linear_matrix.shape[0] / num_proxy_per_class)
+                for i in range(num_classes):
+                    from_ = i * num_proxy_per_class
+                    to = (i + 1) * num_proxy_per_class
+                    mean_linear_tensors.append(torch.mean(linear_matrix[from_:to], axis=0, keepdim=True))
+                linear_matrix = torch.cat(mean_linear_tensors)
+                u, s, v = torch.svd(torch.matmul(linear_matrix, linear_matrix.T))
+                sv_ratio = s[0] / (s[-1] + 0.00001)
+                sv_entropy_positive =  torch.sum(F.softmax(torch.sqrt(s), dim=0) * F.log_softmax(torch.sqrt(s), dim=0))
+                sv_entropy_negative = - torch.sum(F.softmax(torch.sqrt(s), dim=0) * F.log_softmax(torch.sqrt(s), dim=0))
+                norm = torch.mean(torch.norm(linear_matrix, dim=1))
+
+                self._metrics['norm'] += norm.item()
+                self._metrics['sv_ratio'] += sv_ratio.item()
+                self._metrics['sv_entropy_positive'] += sv_entropy_positive.item()
+                self._metrics['sv_entropy_negative'] += sv_entropy_negative.item()
 
         if self._args['use_sim_clr']:
             similarity_loss = self.nt_xent_loss(outputs['features'])
-            loss += similarity_loss
-            self._metrics['xt_xent_loss'] += similarity_loss.item()
+            loss += self._args['sim_clr_alpha']*similarity_loss
+            self._metrics['xt_xent_loss'] +=  self._args['sim_clr_alpha']*similarity_loss.item()
 
         #if not utils.check_loss(loss):
         #    raise ValueError("A loss is NaN: {}".format(self._metrics))
