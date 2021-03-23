@@ -213,7 +213,8 @@ class CosineClassifier(nn.Module):
         pre_fc=None,
         negative_weights_bias=None,
         train_negative_weights=False,
-        eval_negative_weights=False
+        eval_negative_weights=False,
+        args = None
     ):
         super().__init__()
 
@@ -233,6 +234,8 @@ class CosineClassifier(nn.Module):
 
         self._negative_weights = None
         self.use_neg_weights = True
+
+        self.args = args
 
         if isinstance(scaling, int) or isinstance(scaling, float):
             self.scaling = scaling
@@ -464,7 +467,7 @@ class CosineClassifier(nn.Module):
         new_weights = []
         for class_index in class_indexes:
             _, loader = inc_dataset.get_custom_loader([class_index])
-            features, _ = utils.extract_features(network, loader)
+            features, _ = utils.extract_features(network, loader, use_sim_clr=self.args['use_sim_clr'])
 
             features_normalized = F.normalize(torch.from_numpy(features), p=2, dim=1)
             class_embeddings = torch.mean(features_normalized, dim=0)

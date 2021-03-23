@@ -29,7 +29,8 @@ class BasicNet(nn.Module):
         classifier_no_act=False,
         attention_hook=False,
         rotations_predictor=False,
-        gradcam_hook=False
+        gradcam_hook=False,
+        args = None
     ):
         super(BasicNet, self).__init__()
 
@@ -46,7 +47,7 @@ class BasicNet(nn.Module):
                 "Unknown postprocessor {}.".format(postprocessor_kwargs["type"])
             )
         logger.info("Post processor is: {}".format(self.post_processor))
-
+        convnet_kwargs['args'] = args
         self.convnet = factory.get_convnet(convnet_type, **convnet_kwargs)
 
         if "type" not in classifier_kwargs:
@@ -55,7 +56,7 @@ class BasicNet(nn.Module):
             self.classifier = Classifier(self.convnet.out_dim, device=device, **classifier_kwargs)
         elif classifier_kwargs["type"] == "cosine":
             self.classifier = CosineClassifier(
-                self.convnet.out_dim, device=device, **classifier_kwargs
+                self.convnet.out_dim, device=device, args=args, **classifier_kwargs
             )
         elif classifier_kwargs["type"] == "mcdropout_cosine":
             self.classifier = MCCosineClassifier(
@@ -81,6 +82,7 @@ class BasicNet(nn.Module):
         self.attention_hook = attention_hook
         self.gradcam_hook = gradcam_hook
         self.device = device
+        self.args = args
 
         self.domain_classifier = None
 
