@@ -41,11 +41,11 @@ class DownsampleConv(nn.Module):
 class ResidualBlock(nn.Module):
     expansion = 1
 
-    def __init__(self, inplanes, increase_dim=False, last_relu=False, downsampling="stride"):
+    def __init__(self, inplanes, increase_dim=False, last_relu=False, downsampling="stride", args=None):
         super(ResidualBlock, self).__init__()
 
         self.increase_dim = increase_dim
-
+        self.args = args
         if increase_dim:
             first_stride = 2
             planes = inplanes * 2
@@ -56,10 +56,16 @@ class ResidualBlock(nn.Module):
         self.conv_a = nn.Conv2d(
             inplanes, planes, kernel_size=3, stride=first_stride, padding=1, bias=False
         )
-        self.bn_a = nn.BatchNorm2d(planes)
+        if self.args and self.args['use_sim_clr']:
+            self.bn_a = PartialBatchNorm2d(planes)
+        else:
+            self.bn_a = nn.BatchNorm2d(planes)
 
         self.conv_b = nn.Conv2d(planes, planes, kernel_size=3, stride=1, padding=1, bias=False)
-        self.bn_b = nn.BatchNorm2d(planes)
+        if self.args and self.args['use_sim_clr']:
+            self.bn_b = PartialBatchNorm2d(planes)
+        else:
+            self.bn_b = nn.BatchNorm2d(planes)
 
         if increase_dim:
             if downsampling == "stride":
@@ -99,11 +105,11 @@ class ResidualBlock(nn.Module):
 class PreActResidualBlock(nn.Module):
     expansion = 1
 
-    def __init__(self, inplanes, increase_dim=False, last_relu=False):
+    def __init__(self, inplanes, increase_dim=False, last_relu=False, args=None):
         super().__init__()
 
         self.increase_dim = increase_dim
-
+        self.args = args
         if increase_dim:
             first_stride = 2
             planes = inplanes * 2
@@ -111,12 +117,17 @@ class PreActResidualBlock(nn.Module):
             first_stride = 1
             planes = inplanes
 
-        self.bn_a = nn.BatchNorm2d(inplanes)
+        if self.args and self.args['use_sim_clr']:
+            self.bn_a = PartialBatchNorm2d(inplanes)
+        else:
+            self.bn_a = nn.BatchNorm2d(inplanes)
         self.conv_a = nn.Conv2d(
             inplanes, planes, kernel_size=3, stride=first_stride, padding=1, bias=False
         )
-
-        self.bn_b = nn.BatchNorm2d(planes)
+        if self.args and self.args['use_sim_clr']:
+            self.bn_b = PartialBatchNorm2d(planes)
+        else:
+            self.bn_b = nn.BatchNorm2d(planes)
         self.conv_b = nn.Conv2d(planes, planes, kernel_size=3, stride=1, padding=1, bias=False)
 
         if increase_dim:
@@ -184,6 +195,7 @@ class CifarResNet(nn.Module):
         final_layer=False,
         all_attentions=False,
         last_relu=False,
+        args = None,
         **kwargs
     ):
         """ Constructor
@@ -195,6 +207,8 @@ class CifarResNet(nn.Module):
         if kwargs:
             raise ValueError("Unused kwargs: {}.".format(kwargs))
 
+        self.args = args
+
         self.all_attentions = all_attentions
         logger.info("Downsampling type {}".format(downsampling))
         self._downsampling_type = downsampling
@@ -205,13 +219,16 @@ class CifarResNet(nn.Module):
         super(CifarResNet, self).__init__()
 
         self.conv_1_3x3 = nn.Conv2d(channels, nf, kernel_size=3, stride=1, padding=1, bias=False)
-        self.bn_1 = nn.BatchNorm2d(nf)
+        if self.args and self.args['use_sim_clr']:
+            self.bn_1 = PartialBatchNorm2d(nf)
+        else:
+            self.bn_1 = nn.BatchNorm2d(nf)
 
-        self.stage_1 = self._make_layer(Block, nf, increase_dim=False, n=n)
-        self.stage_2 = self._make_layer(Block, nf, increase_dim=True, n=n - 1)
-        self.stage_3 = self._make_layer(Block, 2 * nf, increase_dim=True, n=n - 2)
+        self.stage_1 = self._make_layer(Block, nf, increase_dim=False, n=n, args=self.args)
+        self.stage_2 = self._make_layer(Block, nf, increase_dim=True, n=n - 1, args=self.args)
+        self.stage_3 = self._make_layer(Block, 2 * nf, increase_dim=True, n=n - 2, args=self.args)
         self.stage_4 = Block(
-            4 * nf, increase_dim=False, last_relu=False, downsampling=self._downsampling_type
+            4 * nf, increase_dim=False, last_relu=False, downsampling=self._downsampling_type, args=self.args
         )
 
         if pooling_config["type"] == "avg":
@@ -258,7 +275,7 @@ class CifarResNet(nn.Module):
                 if isinstance(m, ResidualBlock):
                     nn.init.constant_(m.bn_b.weight, 0)
 
-    def _make_layer(self, Block, planes, increase_dim=False, n=None):
+    def _make_layer(self, Block, planes, increase_dim=False, n=None, args=None):
         layers = []
 
         if increase_dim:
@@ -267,7 +284,8 @@ class CifarResNet(nn.Module):
                     planes,
                     increase_dim=True,
                     last_relu=False,
-                    downsampling=self._downsampling_type
+                    downsampling=self._downsampling_type,
+                    args=args
                 )
             )
             planes = 2 * planes
@@ -283,7 +301,8 @@ class CifarResNet(nn.Module):
 
     def forward(self, x):
         x = self.conv_1_3x3(x)
-        x = F.relu(self.bn_1(x), inplace=True)
+        x = self.bn_1(x)
+        x = F.relu(x, inplace=True)
 
         feats_s1, x = self.stage_1(x)
         feats_s2, x = self.stage_2(x)
@@ -312,3 +331,37 @@ class CifarResNet(nn.Module):
 
 def resnet_rebuffi(n=5, **kwargs):
     return CifarResNet(n=n, **kwargs)
+
+
+class PartialBatchNorm2d(nn.BatchNorm2d):
+
+    def __init__(self, inplanes):
+        super().__init__(inplanes)
+
+    def forward(self, x):
+        half_batch = x.shape[0] // 2
+        x1 = super().forward(x[:half_batch])
+        self.eval()
+        x2 = super().forward(x[half_batch:])
+        self.train()
+        return torch.cat([x1, x2])
+
+
+class PartialBatchNorm2dAlt(nn.Module):
+
+    def __init__(self, inplanes: int):
+        super().__init__()
+        self.bn = nn.BatchNorm2d(inplanes)
+
+    def forward(self, x):
+        half_batch = x.shape[0] // 2
+        x1 = self.bn(x[:half_batch])
+        self.bn.eval()
+        x2 = self.bn(x[half_batch:])
+        return torch.cat([x1,x2])
+
+#    def __getattr__(self, item):
+#        return getattr(self.bn, item)
+
+#    def __setattr__(self, key, value):
+#        return setattr(self.bn, key, value)
