@@ -21,6 +21,11 @@ logger = logging.getLogger(__name__)
 
 def train(args):
     logger_lib.set_logging_level(args["logging"])
+    experiment_folder_name = f"/home/zoy07590/incremental-learning.pytorch/logs/podnet_{args['dataset']}_init_{args['initial_increment']}_increment_" \
+                             f"{args['increment']}_memory_{args['memory_size']}_{time.ctime()}"
+
+    os.mkdir(experiment_folder_name)
+    args['experiment_folder_name'] = experiment_folder_name
 
     autolabel = _set_up_options(args)
     if args["autolabel"]:
@@ -92,6 +97,7 @@ def _train(args, start_date, class_order, run_id):
     inc_dataset, model = _set_data_model(args, class_order)
     results, results_folder = _set_results(args, start_date)
 
+    experiment_folder_name = args['experiment_folder_name']
     memory, memory_val = None, None
     metric_logger = metrics.MetricLogger(
         inc_dataset.n_tasks, inc_dataset.n_classes, inc_dataset.increments
@@ -142,10 +148,9 @@ def _train(args, start_date, class_order, run_id):
             ) as f:
                 pickle.dump((ypreds, ytrue), f)
 
-        accuracies_folder = "/accuracy/"
-        np.save(os.path.join(accuracies_folder, f"incremental_accuracy_task_{task_id}.npy"), metric_logger.last_results["incremental_accuracy"])
-        np.save(os.path.join(accuracies_folder, f"accuracy_task_{task_id}.npy"), metric_logger.last_results["accuracy"])
-        np.save(os.path.join(accuracies_folder, f"forgetting_task_{task_id}.npy"), metric_logger.last_results["forgetting"])
+        np.save(os.path.join(experiment_folder_name, f"incremental_accuracy_task_{task_id}.npy"), metric_logger.last_results["incremental_accuracy"])
+        np.save(os.path.join(experiment_folder_name, f"accuracy_task_{task_id}.npy"), metric_logger.last_results["accuracy"])
+        np.save(os.path.join(experiment_folder_name, f"forgetting_task_{task_id}.npy"), metric_logger.last_results["forgetting"])
         if args["label"]:
             logger.info(args["label"])
         logger.info("Avg inc acc: {}.".format(metric_logger.last_results["incremental_accuracy"]))
@@ -289,7 +294,9 @@ def _set_seed(seed, nb_threads, no_benchmark, detect_anomaly):
         logger.warning("CUDA algos are not determinists but faster!")
     else:
         logger.warning("CUDA algos are determinists but very slow!")
-    torch.backends.cudnn.deterministic = not no_benchmark  # This will slow down training.
+    #torch.backends.cudnn.deterministic = not no_benchmark  # This will slow down training.
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
     torch.set_num_threads(nb_threads)
     if detect_anomaly:
         logger.info("Will detect autograd anomaly.")
