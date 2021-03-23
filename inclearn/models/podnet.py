@@ -78,7 +78,8 @@ class PODNet(ICarl):
             extract_no_act=True,
             classifier_no_act=args.get("classifier_no_act", True),
             attention_hook=True,
-            gradcam_hook=bool(self._gradcam_distil)
+            gradcam_hook=bool(self._gradcam_distil),
+            args = args
         )
 
         self._examplars = {}
