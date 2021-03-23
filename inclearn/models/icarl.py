@@ -278,12 +278,14 @@ class ICarl(IncrementalLearner):
         # ADD SAVE MODEL]
             # TODO CHANGE BACK TO ABSOLUTE PATH
             # OR BETTER TAKE PATH FROM CONFIG
-            torch.save(self._network.state_dict(), f"/checkpoints/podnet_task_{self._task}_epoch_{epoch}.pth")
-            print(f"Saved model to /checkpoints/podnet_task_{self._task}_epoch_{epoch}.pth")
+            os.makedirs(os.path.join(self._args['experiment_folder_name'], "checkpoints"), exist_ok=True)
+        #    model_save_path = os.path.join(self._args['experiment_folder_name'], f"checkpoints/podnet_task_{self._task}_epoch_{epoch}.pth")
+        #    torch.save(self._network.state_dict(), model_save_path)
+        #    print(f"Saved model to {model_save_path}")
             # record_metric
             for metric in self._metrics.keys():
 
-                with open(f"/accuracy/{metric}.txt", "a") as f:
+                with open(os.path.join(self._args['experiment_folder_name'], f"{metric}.txt"), "a") as f:
                     f.write(f"{self._metrics[metric]} ")
 
         if self._eval_every_x_epochs:
@@ -363,10 +365,6 @@ class ICarl(IncrementalLearner):
                 self._metrics['sv_entropy_positive'] += sv_entropy_positive.item()
                 self._metrics['sv_entropy_negative'] += sv_entropy_negative.item()
 
-        if self._args['use_sim_clr']:
-            similarity_loss = self.nt_xent_loss(outputs['features'])
-            loss += self._args['sim_clr_alpha']*similarity_loss
-            self._metrics['xt_xent_loss'] +=  self._args['sim_clr_alpha']*similarity_loss.item()
 
         #if not utils.check_loss(loss):
         #    raise ValueError("A loss is NaN: {}".format(self._metrics))
@@ -551,9 +549,9 @@ class ICarl(IncrementalLearner):
 
         return mean
 
-    @staticmethod
-    def compute_accuracy(model, loader, class_means):
-        features, targets_ = utils.extract_features(model, loader)
+#    @staticmethod
+    def compute_accuracy(self, model, loader, class_means):
+        features, targets_ = utils.extract_features(model, loader, use_sim_clr=self._args['use_sim_clr'])
 
         features = (features.T / (np.linalg.norm(features.T, axis=0) + EPSILON)).T
 

@@ -268,7 +268,7 @@ class IncrementalDataset:
             sampler = None
             batch_size = self._batch_size
 
-        if self.args and self.args['use_sim_clr']:
+        if self.args and self.args['use_sim_clr'] and mode == 'train':
             print("Using sim clr dataset")
             trsf_contrastive = transforms.Compose(
                 [
@@ -489,15 +489,12 @@ class DoubleAugmentedDataset(torch.utils.data.Dataset):
             augmented_inputs.append(example['augmented_inputs'])
             memory_flags.append(example['memory_flags'])
 
-        inputs.extend(augmented_inputs)
-        targets.extend(targets)
-        memory_flags.extend(memory_flags)
 
-        inputs = torch.stack(inputs)
-        targets = torch.tensor(targets, dtype=torch.long)
-        memory_flags = torch.tensor(memory_flags)
+        x = torch.stack(inputs+augmented_inputs)
+        y = torch.tensor(targets + targets, dtype=torch.long)
+        memory_flags = torch.tensor(memory_flags+memory_flags)
 
-        return {"inputs": inputs, "targets": targets, "memory_flags": memory_flags}
+        return {"inputs": x, "targets": y, "memory_flags": memory_flags}
 
 
 
