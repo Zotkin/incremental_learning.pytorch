@@ -1,5 +1,5 @@
-for ((i=1; i<4; i++)); do
-  for j in {1,5,10}; do
+for ((i=1; i<3; i++)); do
+  for j in {1,}; do
 
     docker run --gpus 0  --mount type=bind,source="$(pwd)"/checkpoints_forgetting/,target=/checkpoints/  \
                          --mount type=bind,source="$(pwd)"/data/,target=/workspace/incremental_learning.pytorch/data/ \
