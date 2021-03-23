@@ -28,16 +28,11 @@ class NT_Xent(nn.Module):
         Instead, given a positive pair, similar to (Chen et al., 2017), we treat the other 2(N − 1) augmented examples within a minibatch as negative examples.
         """
         batch_size = int(p1.shape[0]/2)
-        print(f"p1 shape {p1.shape}")
         mask = self.get_correlated_samples_mask(batch_size)
-        print(f"Batch size {batch_size}")
-        print(f"Mask shape {mask.shape}")
+
         sim = self.similarity_f(p1.unsqueeze(1), p1.unsqueeze(0)) / self.temperature
-        print(f"Sim shape {sim.shape}")
         sim_i_j = torch.diag(sim, batch_size)
         sim_j_i = torch.diag(sim, -batch_size)
-        print(f"Sim i_j shape {sim_i_j.shape}")
-        print(f"Sim j_i shape {sim_j_i.shape}")
         positive_samples = torch.cat((sim_i_j, sim_j_i), dim=0).reshape(
             batch_size * 2, 1
         )
